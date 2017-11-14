@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Kamaz">
+      <UniqueIdentifier>{a9a2c30f-97ee-46ea-971b-1ba729cc0227}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="API">
+      <UniqueIdentifier>{2b484405-04a3-4f02-9c39-55f9be88836e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -24,6 +30,12 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Kamaz\Algorithms.h">
+      <Filter>Kamaz</Filter>
+    </ClInclude>
+    <ClInclude Include="API\api.h">
+      <Filter>API</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -31,6 +43,12 @@
     </ClCompile>
     <ClCompile Include="KamazTester.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Kamaz\Algorithms.cpp">
+      <Filter>Kamaz</Filter>
+    </ClCompile>
+    <ClCompile Include="API\api.cpp">
+      <Filter>API</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
