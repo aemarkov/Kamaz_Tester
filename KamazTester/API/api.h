@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include "InputStore.h"
 
 using namespace std;
 
@@ -39,6 +40,24 @@ using namespace std;
 #define RESULT_LENGTH                       8       //Число байт в ответе
 #define CAN_CMD_Circuit_Request             1
 #define portMAX_DELAY						0xffffffffUL
+
+
+
+#define DELAY "delay "
+#define GET_CIRCUIT_STATUS "get circuit status"
+#define ADC "adc"
+#define GET_CONTOUR_4_RESPONSE "get contour 4 response"
+#define SEND_CONTOUR_4_REQUEST "send contour 4 request"
+#define J1939_CIRCUIT_4_ERROR "j1939 circuit 4 error"
+#define J1939_K10_ERROR "j1939 k10 error"
+#define J1939_K8_K9_ERROR "j1939 k8 k9 error"
+#define J1939_K8_ERROR "j1939 k8 error"
+#define J1939_K9_ERROR "j1939 k9 error"
+#define J1939_SENSOR_NOT_CALIBRATED_ERROR "j1939 sensor not calibrated error"
+#define J1939_PRESSURE_NOT_ENOUGH_ERROR "j1939 pressure not enough error"
+#define J1939_TIGHTNESS_PRESSURE_ERROR "j1939 tightness pressure error"
+#define J1939_TIGHTNESS_VAKUUM_ERROR "j1939 tightness vakuum error"
+
 
 /////////////////////////// RTOS /////////////////////////////////////////
 void vTaskDelay(int delay);
@@ -85,24 +104,16 @@ void CanJ1939_SendTightnessVakuumError();
 
 ////////////////////////// Системные ////////////////////////////////////
 
+void ResetEnv();
 vector<string> & getActions();
 
-// Преобразует давление в атмосферах в значение АЦП
-int16_t atmToAdc(float atm);
-
-// Преобразует значение АЦП в давление в атмосферах
-float adcToAtm(int16_t adc);
-
 // Возвращает маску от списка открытости клапанов
-uint16_t getValvesMask(vector<bool> valves);
-
-//Устанавливает открытость клапанов 
-void setValves(vector<bool> valves);
-
-// выводит состояние клапанов
+uint16_t getBoolMask(vector<bool> valves);
 string valvesToString(uint16_t valves);
 
-// выводит состояние клапанов
-string valvesToString();
+// Входные параметры
+extern InputStore<uint16_t> circuitState;			// Маска обрывов
+extern InputStore<float> budPressure;				// Давление в полости (== давление датчика)
+extern InputStore<float> contour4Pressure;			// Давление в контуре
 
 #endif

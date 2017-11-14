@@ -1,80 +1,28 @@
 #include "api.h"
 
-uint16_t valvesState;			// Маска клапанов
-uint16_t circuitState;			// Маска обрывов
+// Входные параметры
+InputStore<uint16_t> circuitState;			// Маска обрывов
+InputStore<float> budPressure;				// Давление в полости (== давление датчика)
+InputStore<float> contour4Pressure;			// Давление в контуре
 
-float wheelsPressures[6];		// Давления в колесах
-float budPressure;				// Давление в полости (== давление датчика)
-float compressorPressure;		// Давление в контуре
-float atmPressure;				// Давление в атмосфере
+// Состояние
+int currentTime;						// Текущее время в тиках
+uint16_t valvesState;					// Маска клапанов
 
-int currentTime;				// Текущее время в тиках
-
+// Совершенные действия
 vector<string> actions;
 
-vector<string> & getActions()
-{
-	return actions;
-}
 
-// Преобразует давление в атмосферах в значение АЦП
-int16_t atmToAdc(float atm)
-{
-	return (atm + 1) * 321 + 482;
-}
-
-// Преобразует значение АЦП в давление в атмосферах
-float adcToAtm(int16_t adc)
-{
-	return (adc - 482) / 321 - 1;
-}
-
-// Возвращает маску от списка открытости клапанов
-uint16_t getValvesMask(vector<bool> valves)
-{
-	uint16_t mask = 0;
-	for (int i = 0; i < 10; i++)
-		mask |= (1 << i);
-
-	return mask;
-}
-
-//Устанавливает открытость клапанов 
-void setValves(vector<bool> valves)
-{
-	valvesState = getValvesMask(valves);
-}
-
-// выводит состояние клапанов
-string valvesToString(uint16_t valves)
-{
-	stringstream s;
-	bool isOpen;
-
-	for (int i = 0; i < 9; i++)
-	{
-		isOpen = (valvesState & (1 << i)) != 0;
-		s << "K" << i + 1 << ": " << isOpen << " ";
-	}
-
-	isOpen = (valvesState & (1 << 9)) != 0;
-	s << "K" << 10 << ": " << isOpen << " ";
-
-	return s.str();
-}
-
-// выводит состояние клапанов
-string valvesToString()
-{
-	return valvesToString(valvesState);
-}
-
+int16_t atmToAdc(float atm);
+float adcToAtm(int16_t adc);
+void setValves(vector<bool> valves);
+string valvesToString();
 
 /////////////////////////// RTOS /////////////////////////////////////////
 void vTaskDelay(int delay)
 {	
 	currentTime += delay;
-	actions.push_back("delay " + std::to_string(delay));
+	actions.push_back(DELAY + std::to_string(delay));
 }
 
 TickType_t xTaskGetTickCount(void)
@@ -155,77 +103,149 @@ void SetValve(uint16_t valve, uint8_t state)
 /////////////////////////// VALVES POWER /////////////////////////////////
 uint16_t GetCircuitStatus(void)
 {
-	actions.push_back("get circuit status");
-	return circuitState;
+	actions.push_back(GET_CIRCUIT_STATUS);
+	return circuitState.GetNext();
 }
 
 
 /////////////////////////// ADC //////////////////////////////////////////
 int16_t GetAdcValue(void)
 {
-	actions.push_back("adc");
-	return atmToAdc(budPressure);
+	actions.push_back(ADC);
+	return atmToAdc(budPressure.GetNext());
 }
 
 
 /////////////////////////// CAN //////////////////////////////////////////
+
 long CAN_GetContour4Response(void* pvBuffer, TickType_t xTicksToWait)
 {
-	int16_t pressure = atmToAdc(compressorPressure);
+	int16_t pressure = atmToAdc(contour4Pressure.GetNext());
 	memcpy(pvBuffer, &pressure, sizeof(pressure));
-	actions.push_back("get contour 4 response");
+	actions.push_back(GET_CONTOUR_4_RESPONSE);
 
 	return 0;
 }
 
 void CAN_Send_Command(uint8_t* buffer)
 {
-	actions.push_back("send contour 4 request");
+	actions.push_back(SEND_CONTOUR_4_REQUEST);
 }
 
 
 void CanJ1939_SendCircuit4Error()
 {
-	actions.push_back("j1939 circuit 4 error");
+	actions.push_back(J1939_CIRCUIT_4_ERROR);
 }
 
 void CanJ1939_SendK10Error()
 {
-	actions.push_back("j1939 k10 error");
+	actions.push_back(J1939_K10_ERROR);
 }
 
 void CanJ1939_SendK8AndK9Error()
 {
-	actions.push_back("j1939 k8 k9 error");
+	actions.push_back(J1939_K8_K9_ERROR);
 }
 
 void CanJ1939_SendK8Error()
 {
-	actions.push_back("j1939 k8 error");
+	actions.push_back(J1939_K8_ERROR);
 }
 
 void CanJ1939_SendK9Error()
 {
-	actions.push_back("j1939 k9 error");
+	actions.push_back(J1939_K9_ERROR);
 }
 
 void CanJ1939_SendSensorNotCalibratedError()
 {
-	//TRIGGERET
-	actions.push_back("j1939 sensor not callibrated error");
+	actions.push_back(J1939_SENSOR_NOT_CALIBRATED_ERROR);
 }
 
 void CanJ1939_SendPressureNotEnoughFor5MinutesError()
 {
-	actions.push_back("j1939 pressure not enough error");
+	actions.push_back(J1939_PRESSURE_NOT_ENOUGH_ERROR);
 }
 
 void CanJ1939_SendTightnessPressureError()
 {
-	actions.push_back("j1939 tightness pressure error");
+	actions.push_back(J1939_TIGHTNESS_PRESSURE_ERROR);
 }
 
 void CanJ1939_SendTightnessVakuumError()
 {
-	actions.push_back("j1939 tightness vakuum error");
+	actions.push_back(J1939_TIGHTNESS_VAKUUM_ERROR);
 }
+
+
+//////////////////////////////////////////////////////////////////////////
+
+
+// Сбрасывает среду моделирования
+void ResetEnv()
+{
+	actions.clear();
+	circuitState.Reset();
+	budPressure.Reset();
+	contour4Pressure.Reset();
+}
+
+
+vector<string> & getActions()
+{
+	return actions;
+}
+
+// Преобразует давление в атмосферах в значение АЦП
+int16_t atmToAdc(float atm)
+{
+	return (atm + 1) * 321 + 482;
+}
+
+// Преобразует значение АЦП в давление в атмосферах
+float adcToAtm(int16_t adc)
+{
+	return (adc - 482) / 321 - 1;
+}
+
+// Возвращает маску от массива векторов
+uint16_t getBoolMask(vector<bool> valves)
+{
+	uint16_t mask = 0;
+	for (int i = 0; i < 10; i++)
+		mask |= (1 << i);
+
+	return mask;
+}
+
+//Устанавливает открытость клапанов 
+void setValves(vector<bool> valves)
+{
+	valvesState = getBoolMask(valves);
+}
+
+// выводит состояние клапанов
+string valvesToString(uint16_t valves)
+{
+	stringstream s;
+	bool isOpen;
+
+	for (int i = 0; i < 9; i++)
+	{
+		isOpen = (valvesState & (1 << i)) != 0;
+		s << "K" << i + 1 << ": " << isOpen << " ";
+	}
+
+	isOpen = (valvesState & (1 << 9)) != 0;
+	s << "K" << 10 << ": " << isOpen << " ";
+
+	return s.str();
+}
+
+// выводит состояние клапанов
+string valvesToString()
+{
+	return valvesToString(valvesState);
+}
+

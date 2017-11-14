@@ -19,6 +19,9 @@
     <Filter Include="API">
       <UniqueIdentifier>{2b484405-04a3-4f02-9c39-55f9be88836e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests">
+      <UniqueIdentifier>{6527cabc-12de-4b8e-ad3e-1b22491e3376}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
@@ -36,6 +39,12 @@
     <ClInclude Include="API\api.h">
       <Filter>API</Filter>
     </ClInclude>
+    <ClInclude Include="API\InputStore.h">
+      <Filter>API</Filter>
+    </ClInclude>
+    <ClInclude Include="Kamaz\alg_consts.h">
+      <Filter>Kamaz</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -49,6 +58,9 @@
     </ClCompile>
     <ClCompile Include="API\api.cpp">
       <Filter>API</Filter>
+    </ClCompile>
+    <ClCompile Include="Kamaz\alg_consts.cpp">
+      <Filter>Kamaz</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
