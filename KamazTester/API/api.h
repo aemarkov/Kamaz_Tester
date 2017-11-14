@@ -3,6 +3,14 @@
 
 
 #include <stdint.h>
+#include <vector>
+#include <string>
+#include <sstream>
+
+using namespace std;
+
+
+#define NUM_WHEELS 6
 
 #define K1_Valve  1
 #define K2_Valve  2
@@ -62,5 +70,39 @@ int16_t GetAdcValue(void);
 /////////////////////////// CAN //////////////////////////////////////////
 long CAN_GetContour4Response(void* pvBuffer, TickType_t xTicksToWait);
 void CAN_Send_Command(uint8_t* buffer);
+
+void CanJ1939_SendCircuit4Error();
+
+void CanJ1939_SendK10Error();
+void CanJ1939_SendK8AndK9Error();
+void CanJ1939_SendK8Error();
+void CanJ1939_SendK9Error();
+
+void CanJ1939_SendSensorNotCalibratedError();
+void CanJ1939_SendPressureNotEnoughFor5MinutesError();
+void CanJ1939_SendTightnessPressureError();
+void CanJ1939_SendTightnessVakuumError();
+
+////////////////////////// Системные ////////////////////////////////////
+
+vector<string> & getActions();
+
+// Преобразует давление в атмосферах в значение АЦП
+int16_t atmToAdc(float atm);
+
+// Преобразует значение АЦП в давление в атмосферах
+float adcToAtm(int16_t adc);
+
+// Возвращает маску от списка открытости клапанов
+uint16_t getValvesMask(vector<bool> valves);
+
+//Устанавливает открытость клапанов 
+void setValves(vector<bool> valves);
+
+// выводит состояние клапанов
+string valvesToString(uint16_t valves);
+
+// выводит состояние клапанов
+string valvesToString();
 
 #endif

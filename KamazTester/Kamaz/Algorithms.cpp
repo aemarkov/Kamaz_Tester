@@ -25,7 +25,7 @@ uint8_t GetNextWheel(uint8_t i, uint8_t mask)
 {
 	mask &= !damagedWheels & GetCircuitStatus();
 
-	int size = WHEELS_COUNT;
+	int size = NUM_WHEELS;
 	while (i < size && !(mask & (1 << i)))
 		i++;
 
@@ -38,7 +38,7 @@ uint8_t GetNextWheel(uint8_t i, uint8_t mask)
 WHEELS_ITERATOR(i, my_mask)
 ...
 */
-#define WHEELS_ITERATOR(I, MASK)for(uint8_t (I) = GetNextWheel(0, (MASK)); (I)<(WHEELS_COUNT); (I) = GetNextWheel((I)+1, (MASK)))
+#define WHEELS_ITERATOR(I, MASK)for(uint8_t (I) = GetNextWheel(0, (MASK)); (I)<(NUM_WHEELS); (I) = GetNextWheel((I)+1, (MASK)))
 
 
 
@@ -56,10 +56,10 @@ bool CheckCircuit4Pressure(void);
 int16_t measurePressure(void);
 
 //получение количества квантов подкачки
-uint16_t calcUpQuants(uint16_t currentPressure, uint16_t requiredPressure);
+uint16_t calcUpQuants(int16_t currentPressure, int16_t requiredPressure);
 
 // Получение количества квантов спуска
-uint16_t calcDownQuants(uint16_t currentPressure, uint16_t requiredPressure);
+uint16_t calcDownQuants(int16_t currentPressure, int16_t requiredPressure);
 
 // Держит клапана открытыми, постепенно закрывая, когда у колеса заканчивается
 // время подкачки
@@ -105,7 +105,10 @@ AlgResult A1(void)
 
 	// Проверка давления в контуре 4
 	if (!CheckCircuit4Pressure())
+	{
+		CanJ1939_SendCircuit4Error();
 		return ALG_CRITICAL_ERROR;
+	}
 
 
 	/* Проверка клапана К8:
@@ -124,6 +127,16 @@ AlgResult A1(void)
 	// если отказали оба клапана К8 и К9 - критическая ошибка  
 	critical_error = k10_error | (k8_error & k9_error);
 	//CanSendK8K9K10Status(critical_error, k8_error, k9_error, k10_error);
+
+	//отправка ошибок J1939
+	if (k10_error)
+		CanJ1939_SendK10Error();
+	else if (k8_error && k9_error)
+		CanJ1939_SendK8AndK9Error();
+	else if (k8_error)
+		CanJ1939_SendK8Error();
+	else if (k9_error)
+		CanJ1939_SendK9Error();
 
 	if (critical_error) return ALG_CRITICAL_ERROR;
 	if (k8_error | k9_error) return ALG_ERROR;
@@ -183,10 +196,12 @@ AlgResult A2(void)
 	int16_t pressure = measurePressure();
 	bool isPressureOk = (pressure <= V1_1) && (pressure >= V0_4);	 // 0.4 - 1.1В
 
-	//CanSendPressureSensorStatus(isPressureOk, pressure);
+																	 //CanSendPressureSensorStatus(isPressureOk, pressure);
 
 	if (isPressureOk)
 		pAtm = pressure;
+	else
+		CanJ1939_SendSensorNotCalibratedError();
 
 	SetValve(K10_Valve, VALVE_CLOSE);
 
@@ -214,8 +229,8 @@ AlgResult A3(void)
 		if (xTaskGetTickCount() - t0 >= 8000) //TODO: 5 * 60 * 1000
 		{
 			//Если за 5 минут не дошло, то некритическая ошибка
-			//TODO: Не крит. ошибка. Отправить ошибку
 			result = ALG_ERROR;
+			CanJ1939_SendPressureNotEnoughFor5MinutesError();
 			break;
 		}
 
@@ -288,9 +303,10 @@ AlgResult A4(void)
 		//Не герметичность БУД на избыточное давление
 		result = ALG_CRITICAL_ERROR;
 		//CanSendTigthnessPressureStatus(false);
+		CanJ1939_SendTightnessPressureError();
 	}
-	else
-		//CanSendTigthnessPressureStatus(true);
+	//else
+	//CanSendTigthnessPressureStatus(true);
 
 
 	SetValve(K10_Valve, VALVE_OPEN);
@@ -330,11 +346,10 @@ AlgResult A5(void)
 			//Не герметичность буд на вакуум
 			result = ALG_CRITICAL_ERROR;
 			//CanSendTigthnessVakuumStatus(false);
+			CanJ1939_SendTightnessVakuumError();
 		}
-		else
-		{
-			//CanSendTigthnessVakuumStatus(true);
-		}
+		//else
+		//CanSendTigthnessVakuumStatus(true);
 
 		SetValve(K10_Valve, VALVE_OPEN);
 		vTaskDelay(2000);
@@ -344,6 +359,7 @@ AlgResult A5(void)
 	{
 		result = ALG_CRITICAL_ERROR;
 		//CanSendTigthnessVakuumStatus(false);
+		CanJ1939_SendTightnessVakuumError();
 	}
 
 	return result;
@@ -356,8 +372,7 @@ void A6(uint8_t wheels)
 {
 	SetValves(Valves_None);
 
-	for (int i = 0; i < 6; i++)
-		WHEELS_ITERATOR(i, wheels)
+	WHEELS_ITERATOR(i, wheels)
 	{
 		// Pколi_2 = Pколi_тек
 		wheelsPressure2[i] = wheelsPressure[i];
@@ -447,9 +462,9 @@ void B0(int16_t requiredWheelsPressure)
 
 
 //Повышение давления воздуха в колесе (-ах)
-void B1(uint8_t wheels, uint16_t requiredPressure)
+void B1(uint8_t wheels, int16_t requiredPressure)
 {
-	uint16_t quantsNumber[6] = { 0 };     // Время подкачки каждого колеса
+	uint16_t quantsNumber[NUM_WHEELS] = { 0 };     // Время подкачки каждого колеса
 	uint16_t maxQuant = 0;              // Максимальное время подкачки
 	uint8_t currentUp = 0;
 
@@ -502,9 +517,9 @@ void B1_ForTime(uint8_t wheels, int seconds)
 }
 
 //Снижение давления воздуха в колесе (-ах)
-void B2(uint8_t wheels, uint16_t requiredPressure)
+void B2(uint8_t wheels, int16_t requiredPressure)
 {
-	uint16_t quantsNumber[6] = { 0 };     // Время спуска каждого колеса
+	uint16_t quantsNumber[NUM_WHEELS] = { 0 };     // Время спуска каждого колеса
 	uint16_t maxQuant = 0;              // Максимальное время спуска
 	uint8_t currentDown = 0;
 
@@ -548,7 +563,7 @@ void WaitForPressureDone(uint16_t* quantsNumber, uint16_t maxQuant, int quant)
 		vTaskDelay(quant);
 
 		// Проверяем, какие колеса накачались и закрываем их
-		for (int j = 0; j < 6; j++)
+		for (int j = 0; j < NUM_WHEELS; j++)
 		{
 			if (quantsNumber[j] != 0 && !(quantsNumber[j] > i + 1))
 			{
@@ -563,7 +578,7 @@ void WaitForPressureDone(uint16_t* quantsNumber, uint16_t maxQuant, int quant)
 //Определение повреждения колеса
 void G0(void)
 {
-	uint16_t wheelsPressure1[6] = { 0 };
+	int16_t wheelsPressure1[NUM_WHEELS] = { 0 };
 
 	// Определяем клапаны, которые возможно спускают - между двумя последними 
 	// измерениями их давление упало ниже порога
@@ -612,7 +627,7 @@ void G0(void)
 void D0(uint8_t damagedWheels)
 {
 
-	uint16_t startPressures[6];
+	int16_t startPressures[NUM_WHEELS];
 	WHEELS_ITERATOR(i, damagedWheels)
 		startPressures[i] = wheelsPressure[i];
 
@@ -716,7 +731,7 @@ bool CheckCircuit4Pressure(void)
 //4 замера с промежутком 0.1 с, и затем усреднение
 int16_t measurePressure(void)
 {
-	uint16_t pressure = 0;
+	int16_t pressure = 0;
 	for (int i = 0; i < 4; i++)
 	{
 		pressure += GetAdcValue();
@@ -727,7 +742,7 @@ int16_t measurePressure(void)
 }
 
 //получение количества квантов подкачки
-uint16_t calcUpQuants(uint16_t currentPressure, uint16_t requiredPressure)
+uint16_t calcUpQuants(int16_t currentPressure, int16_t requiredPressure)
 {
 	double numQuants = 1.0;
 	double a = P_COMPRESSOR - requiredPressure;
@@ -740,7 +755,7 @@ uint16_t calcUpQuants(uint16_t currentPressure, uint16_t requiredPressure)
 }
 
 // Получение количества квантов спуска
-uint16_t calcDownQuants(uint16_t currentPressure, uint16_t requiredPressure)
+uint16_t calcDownQuants(int16_t currentPressure, int16_t requiredPressure)
 {
 	return 0;
 }
